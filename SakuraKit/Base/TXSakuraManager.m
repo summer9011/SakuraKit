@@ -22,6 +22,7 @@ UIKIT_EXTERN NSString *const kTXSakura2DAnimatedSELTail;
 UIKIT_EXTERN NSString *const kTXSakuraArgBool;
 UIKIT_EXTERN NSString *const kTXSakuraArgFloat;
 UIKIT_EXTERN NSString *const kTXSakuraArgCustomInt;
+UIKIT_EXTERN NSString *const kTXSakuraArgCustomDictionary;
 UIKIT_EXTERN NSString *const kTXSakuraArgColor;
 UIKIT_EXTERN NSString *const kTXSakuraArgCGColor;
 UIKIT_EXTERN NSString *const kTXSakuraArgFont;
@@ -111,6 +112,10 @@ static TXSakuraName *_currentSakuraName;
 /** Reserved for future use */
 static NSMutableArray<TXSakuraName *> *_localSakuras;
 
+static TXSakuraName *_defaultLocalThemeName;
+static NSString *_customThemeRootPath;
+static NSDictionary *_currentConfigDic;
+
 - (instancetype)init {
     @throw [NSException exceptionWithName:NSInvalidArgumentException reason:@"Please use + manager: method instead." userInfo:nil];
 }
@@ -171,7 +176,8 @@ static NSMutableArray<TXSakuraName *> *_localSakuras;
 + (BOOL)shiftSakuraWithName:(TXSakuraName *)name type:(TXSakuraType)type {
     if (name &&
         [name isEqualToString:_currentSakuraName]) return NO;
-    if (!name) name = kTXSakuraDefault;
+    TXSakuraName *defaultName = [self tx_getDefaultThemeName];
+    if (!name) name = defaultName;
     switch (type) {
         case TXSakuraTypeMainBundle:
             _resourcesPath = nil;
@@ -181,7 +187,7 @@ static NSMutableArray<TXSakuraName *> *_localSakuras;
             _resourcesPath = [self tx_getSakuraResourceSandboxPathWithName:name];
             _configsFilePath = [self tx_tryGetSakuraConfigsFileSandboxPathWithName:name];
             if (!_configsFilePath.length && _resourcesPath.length) {
-                _configsFilePath = [self tx_getSakuraConfigsFileBundlePathWithName:kTXSakuraDefault];
+                _configsFilePath = [self tx_getSakuraConfigsFileBundlePathWithName:defaultName];
             }
         }
             break;
@@ -203,7 +209,6 @@ static NSMutableArray<TXSakuraName *> *_localSakuras;
     return NO;
 }
 
-
 /**
  Save informations of current sakura
 
@@ -211,6 +216,7 @@ static NSMutableArray<TXSakuraName *> *_localSakuras;
  @param type Current sakura type
  */
 + (void)saveCurrentSakuraInfosWithName:(TXSakuraName *)name type:(TXSakuraType)type {
+    _currentConfigDic = nil;
     _currentSakuraName = name;
     _currentSakuraType = type;
     NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
@@ -240,19 +246,24 @@ static NSMutableArray<TXSakuraName *> *_localSakuras;
 #pragma mark - Fetch Resource
 
 + (NSDictionary *)getSakuraConfigsFileData {
-    NSDictionary *configsFile = [NSDictionary dictionaryWithContentsOfFile:_configsFilePath];
-    if (!configsFile && _configsFilePath) {
-        NSData *data = [NSData dataWithContentsOfFile:_configsFilePath];
-        if (!data) return nil;
-        configsFile = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    if (_currentConfigDic == nil) {
+        _currentConfigDic = [NSDictionary dictionaryWithContentsOfFile:_configsFilePath];
+        if (!_currentConfigDic && _configsFilePath) {
+            NSData *data = [NSData dataWithContentsOfFile:_configsFilePath];
+            if (data != nil) {
+                _currentConfigDic = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
 #ifdef DEBUG
-        if (!configsFile) {
-            NSLog(@"Maybe an error: %@ file content format!",[_configsFilePath lastPathComponent]);
-        }
+                if (!_currentConfigDic) {
+                    NSLog(@"Maybe an error: %@ file content format!",[_configsFilePath lastPathComponent]);
+                }
 #endif
+            } else {
+                _currentConfigDic=nil;
+            }
+        }
+        if (![_currentConfigDic isKindOfClass:[NSDictionary class]]) _currentConfigDic=nil;
     }
-    if (![configsFile isKindOfClass:[NSDictionary class]]) return nil;
-    return configsFile;
+    return _currentConfigDic;
 }
 
 #pragma mark - C Function
@@ -295,6 +306,11 @@ SEL getSelectorWithPattern(const char *prefix, const char *key, const char *suff
     [_localSakuras addObjectsFromArray:names];
 }
 
++ (void)resetThemeDirectoryPath:(NSString *)directoryPath defaultThemeName:(TXSakuraName *)name {
+    _defaultLocalThemeName = name;
+    _customThemeRootPath = directoryPath;
+}
+
 @end
 
 @implementation TXSakuraManager(TXSerialization)
@@ -306,7 +322,8 @@ SEL getSelectorWithPattern(const char *prefix, const char *key, const char *suff
              kTXSakuraArgImage:@"tx_imageWithPath:",
              kTXSakuraArgFont:@"tx_fontWithPath:",
              kTXSakuraArgTextAttributes:@"tx_titleTextAttributesDictionaryWithPath:",
-             kTXSakuraArgTitle:@"tx_stringWithPath:"
+             kTXSakuraArgTitle:@"tx_stringWithPath:",
+             kTXSakuraArgCustomDictionary:@"tx_origDictionaryWithPath:"
              };
 }
 
@@ -527,8 +544,15 @@ static NSString *kTXSakuraDiretoryName = @"com.tingxins.sakura";
 
 #pragma mark - Local sakura path operation(Public)
 
++ (TXSakuraName *)tx_getDefaultThemeName {
+    return (_defaultLocalThemeName != nil)?_defaultLocalThemeName:kTXSakuraDefault;
+}
+
 // Sakura
 + (NSString *)tx_getSakurasDirectoryPath {
+    if (_customThemeRootPath) {
+        return _customThemeRootPath;
+    }
     NSString *libraryPath = [self _getLibraryPath];
     NSString *path = [libraryPath stringByAppendingPathComponent:kTXSakuraDiretoryName];
     return path;
@@ -578,7 +602,7 @@ static NSString *kTXSakuraDiretoryName = @"com.tingxins.sakura";
     NSError *error = nil;
     NSArray<TXSakuraName *> *remoteItems = [fileManager contentsOfDirectoryAtPath:[self tx_getSakurasDirectoryPath] error:&error];
     NSMutableArray<TXSakuraName *> *mutableFileItems = [NSMutableArray array];
-    [mutableFileItems addObject:kTXSakuraDefault];
+    [mutableFileItems addObject:[self tx_getDefaultThemeName]];
     if (_localSakuras) {
         [mutableFileItems addObjectsFromArray:_localSakuras];
     }
@@ -621,7 +645,7 @@ static NSString *kTXSakuraDiretoryName = @"com.tingxins.sakura";
     if ([fileManager fileExistsAtPath:path]) {
         flag = [fileManager removeItemAtPath:path error:&error];
         if (flag && [NSThread currentThread] == [NSThread mainThread]) {
-            [TXSakuraManager shiftSakuraWithName:kTXSakuraDefault type:TXSakuraTypeMainBundle];
+            [TXSakuraManager shiftSakuraWithName:[TXSakuraManager tx_getDefaultThemeName] type:TXSakuraTypeMainBundle];
         }
     }
 #ifdef DEBUG

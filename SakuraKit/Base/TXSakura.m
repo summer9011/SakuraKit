@@ -22,6 +22,7 @@ NSString *const kTXSakura2DAnimatedSELTail = @"animated:";
 #pragma mark - Config TYPE OF ARG
 
 NSString *const kTXSakuraArgCustomInt = @"com.tingxins.sakura.arg.custom.int";
+NSString *const kTXSakuraArgCustomDictionary = @"com.tingxins.sakura.arg.custom.dictionary";
 
 #pragma mark - Config TYPE OF ARG
 
@@ -52,6 +53,9 @@ NSTimeInterval const TXSakuraSkinChangeDuration = 0.25;
 @property (strong, nonatomic) NSDictionary *innerSkins1D;
 // double args
 @property (strong, nonatomic) NSDictionary *innerSkins2D;
+
+@property (strong, nonatomic) void(^innerCustomBlock)(id originValue);
+@property (strong, nonatomic) NSString *innerCustomPath;
 
 @end
 
@@ -91,6 +95,10 @@ NSTimeInterval const TXSakuraSkinChangeDuration = 0.25;
     return [NSDictionary dictionaryWithDictionary:self.innerSkins2D];
 }
 
+- (TXSakuraCustomBlock)originDataBlock {
+    return (TXSakuraCustomBlock)[self tx_sakuraDictionaryBlockWithName:NSStringFromSelector(_cmd)];
+}
+
 - (instancetype)initWithOwner:(id)owner {
     if (self = [super init]) {
         _owner = owner;
@@ -116,6 +124,12 @@ NSTimeInterval const TXSakuraSkinChangeDuration = 0.25;
     // 二维参数
     [self updateSakuraWith2DSkins:self.skins2D];
     
+    //触发originData的自定义方法
+    if (self.innerCustomBlock) {
+        BOOL flag = false;
+        id originValue = [self getObjVectorWithSakuraArgType:kTXSakuraArgCustomDictionary path:self.innerCustomPath exist:&flag];
+        self.innerCustomBlock(originValue);
+    }
 }
 
 #pragma mark - Test Refactor
@@ -327,6 +341,24 @@ NSTimeInterval const TXSakuraSkinChangeDuration = 0.25;
     CGFloat value = valueBlock(keyPath);
     //    valueBlock = nil;
     [self send1DMsgWithSEL:sel floatValue:value];
+    return self;
+}
+
+- (instancetype)send1DMsgObjectWithName:(NSString *)name
+                                keyPath:(NSString *)keyPath
+                            customBlock:(void(^)(id originValue))customBlock
+                                    arg:(NSString *)arg
+                             valueBlock:(id(^)(NSString *))valueBlock {
+    self.innerCustomBlock = customBlock;
+    self.innerCustomPath = keyPath;
+    
+    // MsgSend
+    if (!valueBlock) return [TXSakuraTrash sakuraWithOwner:self];
+    NSObject *obj = valueBlock(keyPath);
+    //execute custom block
+    if (customBlock) {
+        customBlock(obj);
+    }
     return self;
 }
 
@@ -555,6 +587,14 @@ NSTimeInterval const TXSakuraSkinChangeDuration = 0.25;
     return ^TXSakura *(NSString *path){
         return [self send1DMsgEnumWithName:name keyPath:path arg:kTXSakuraArgBarStyle valueBlock:^NSInteger(NSString *keyPath) {
             return [TXSakuraManager tx_barStyleWithPath:keyPath];
+        }];
+    };
+}
+
+- (TXSakuraCustomBlock)tx_sakuraDictionaryBlockWithName:(NSString *)name {
+    return ^TXSakura *(NSString *path, void(^CustomBlock)(id originValue)){
+        return [self send1DMsgObjectWithName:name keyPath:path customBlock:CustomBlock arg:kTXSakuraArgCustomDictionary valueBlock:^id(NSString *keyPath) {
+            return [TXSakuraManager tx_origDictionaryWithPath:keyPath];
         }];
     };
 }

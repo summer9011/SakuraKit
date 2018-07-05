@@ -39,9 +39,11 @@ typedef Class *(^Class##2DBoolBlock)(NSString *, BOOL);
 #define TXSakura2DUIntBlockDeclare(Class)\
 typedef Class *(^Class##2DUIntBlock)(NSString *, NSUInteger);
 
-#define TXSakuraBlockCustomDeclare(Class)\
-typedef Class *(^Class##CustomBlock)(NSString *propertyName, NSString *keyPath);
+//#define TXSakuraBlockCustomDeclare(Class)\
+//typedef Class *(^Class##CustomBlock)(NSString *propertyName, NSString *keyPath);
 
+#define TXSakuraBlockCustomDeclare(Class)\
+typedef Class *(^Class##CustomBlock)(NSString *keyPath, void(^CustomBlock)(id originValue));
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
@@ -50,6 +52,7 @@ typedef Class *(^Class##CustomBlock)(NSString *propertyName, NSString *keyPath);
 TXSakuraBlockDeclare(TXSakura)
 TXSakura2DUIntBlockDeclare(TXSakura)
 TXSakura2DBoolBlockDeclare(TXSakura)
+TXSakuraBlockCustomDeclare(TXSakura)
 
 UIKIT_EXTERN NSString *const TXSakuraSkinChangeNotification;
 
@@ -63,6 +66,8 @@ UIKIT_EXTERN NSString *const TXSakuraSkinChangeNotification;
 
 /** Get ower of current sakura. */
 @property (weak, nonatomic, readonly) id owner;
+
+@property (strong, nonatomic) TXSakuraCustomBlock originDataBlock;
 
 + (instancetype)sakuraWithOwner:(id)owner;
 
@@ -99,6 +104,8 @@ UIKIT_EXTERN NSString *const TXSakuraSkinChangeNotification;
 - (TXSakuraBlock)tx_sakuraIndicatorViewStyleBlockWithName:(NSString *)name;
 
 - (TXSakuraBlock)tx_sakuraBarStyleBlockWithName:(NSString *)name;
+
+- (TXSakuraCustomBlock)tx_sakuraDictionaryBlockWithName:(NSString *)name;
 
 #pragma mark - 2D Block
 

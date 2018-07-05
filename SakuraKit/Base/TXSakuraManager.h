@@ -98,6 +98,8 @@ typedef NS_ENUM(NSInteger, TXSakuraDownloadTaskStatus) {
 + (NSArray<TXSakuraName *> *_Nullable)getLocalSakuraNames;
 
 + (void)registerLocalSakuraWithNames:(NSArray<TXSakuraName *> *_Nullable)names;
++ (void)resetThemeDirectoryPath:(NSString *)directoryPath defaultThemeName:(TXSakuraName *)name;
+
 
 //+ (void)addRemoteSakuraWithName:(TXSakuraName *_Nullable)name resourceURL:(NSURL *_Nullable)url;
 
@@ -206,6 +208,8 @@ typedef void(^TXSakuraGeneratePathSuccessHandler)(NSString *_Nullable toFilePath
 + (BOOL)tx_clearSakuraCacheWithPath:(NSString *_Nullable)path;
 
 #pragma mark - Sakura operation
+
++ (TXSakuraName *)tx_getDefaultThemeName;
 
 /** Path: Sakura */
 + (NSString *_Nullable)tx_getSakurasDirectoryPath;
